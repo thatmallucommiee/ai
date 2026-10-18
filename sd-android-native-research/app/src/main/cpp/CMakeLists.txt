@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(sdnative LANGUAGES CXX)
+add_library(sdnative SHARED native_renderer.cpp)
+find_library(log-lib log)
+find_library(android-lib android)
+find_library(gles-lib GLESv3)
+target_link_libraries(sdnative ${log-lib} ${android-lib} ${gles-lib})
