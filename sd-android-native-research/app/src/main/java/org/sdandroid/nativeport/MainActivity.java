@@ -3,7 +3,6 @@ package org.sdandroid.nativeport;
 import android.app.Activity;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
-import android.view.MotionEvent;
 import android.util.Log;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -38,6 +37,13 @@ public final class MainActivity extends Activity {
         setContentView(view);
     }
 
-    @Override protected void onPause() { super.onPause(); if (view != null) view.onPause(); }
-    @Override protected void onResume() { super.onResume(); if (view != null) view.onResume(); }
+    @Override protected void onPause() {
+        if (view != null) view.onPause();
+        super.onPause();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (view != null) view.onResume();
+    }
 }
