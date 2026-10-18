@@ -9,7 +9,7 @@ This folder contains an ARM64 Android rendering smoke test, not a port of Sleepi
 - GitHub Actions workflow builds a debug APK artifact.
 
 ## Legal and technical boundary
-No Sleeping Dogs executable, proprietary assets, proprietary source, or decompiled code is included. The public TheoryEngine repository is archived and has no license; do not copy its code unless permission or qualified legal guidance is obtained.
+No Sleeping Dogs executable, proprietary assets, proprietary source, or decompiled code is included. The public TheoryEngine repository is an archived reverse-engineered reimplementation, not the original source, and has no clear reuse license. Do not copy its code unless permission or qualified legal guidance is obtained. See [GENUINE_PORT_FEASIBILITY.md](GENUINE_PORT_FEASIBILITY.md) for the feasibility assessment and required gates.
 
 ## Build
 Run the **Build Android Debug APK** workflow from the Actions tab. Workflow is scoped to this directory. It downloads Gradle 8.9, installs Android SDK packages, then builds a debug APK.
@@ -24,7 +24,9 @@ Run the **Build Android Debug APK** workflow from the Actions tab. Workflow is s
 This is only a renderer smoke test. It does not load Sleeping Dogs data, implement gameplay, or prove the proprietary engine can be ported. The build has not yet been verified on the target device.
 
 ## Roadmap
-1. Verify CI build and fix any build errors.
-2. Install APK on the POCO X7 and capture renderer/GPU logs.
-3. Audit engine research sources and their reuse permissions.
-4. Build a clean, independently implemented Android engine layer; add original game asset support only after technical and legal review.
+1. Resolve the legal/reuse status of available engine research before integrating any of it.
+2. Establish access to the user's legally obtained game data without uploading it to GitHub or CI.
+3. Audit asset formats and engine/platform dependencies.
+4. Prove one real asset can be loaded and rendered on Android; then expand toward gameplay.
+
+A native port is not yet demonstrated feasible. Do not treat this smoke-test APK as the game.
