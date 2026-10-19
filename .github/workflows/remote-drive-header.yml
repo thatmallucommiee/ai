@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Fetch only the first 64 bytes
+      - name: Fetch archive header, handling Drive confirmation
         env:
           DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
         shell: bash
@@ -26,18 +26,47 @@ jobs:
             echo "Invalid Drive file ID format."
             exit 1
           fi
+
           URL="https://drive.google.com/uc?export=download&id=$DRIVE_FILE_ID"
-          CODE=$(curl -L --silent --show-error --range 0-63 --max-time 90 -o header.bin -w '%{http_code}' "$URL")
-          echo "HTTP status: $CODE"
-          echo "Downloaded bytes: $(wc -c < header.bin)"
+          curl -sS -L --range 0-63 --max-time 90 -o response.bin -w 'Initial HTTP status: %{http_code}\n' "$URL"
+          SIZE=$(wc -c < response.bin)
+          echo "Initial response bytes: $SIZE"
+          if head -c 500 response.bin | grep -aq 'Google Drive - Virus scan warning'; then
+            echo "Drive requires its virus-scan confirmation flow; extracting confirmation token."
+            TOKEN=$(python3 - <<'PY'
+          import re
+          s = open("response.bin", "rb").read().decode("utf-8", "replace")
+          patterns = [
+              r'name="confirm"\s+value="([^"]+)"',
+              r'[?&]confirm=([0-9A-Za-z_-]+)',
+          ]
+          for p in patterns:
+              m = re.search(p, s)
+              if m:
+                  print(m.group(1))
+                  break
+          PY
+          )
+            if [[ -z "$TOKEN" ]]; then
+              echo "Could not find a confirmation token. Drive may require a different access method."
+              echo "Response title:"
+              grep -ao '<title>[^<]*</title>' response.bin | head -1 || true
+              exit 1
+            fi
+            URL="https://drive.google.com/uc?export=download&confirm=$TOKEN&id=$DRIVE_FILE_ID"
+            curl -sS -L --range 0-63 --max-time 120 -o header.bin -w 'Confirmed HTTP status: %{http_code}\n' "$URL"
+          else
+            mv response.bin header.bin
+          fi
+
+          echo "Bytes received on final request: $(wc -c < header.bin)"
           file header.bin || true
           echo "First bytes (hex):"
           od -An -tx1 -N64 header.bin
           echo "First bytes (ASCII):"
           od -An -tc -N64 header.bin
-          echo "Response preview (first 300 bytes, if text):"
-          head -c 300 header.bin | strings || true
-          if grep -a -qi 'confirm\|Google Drive - virus scan warning\|accounts.google.com' header.bin; then
-            echo "NOTE: Response may be a Drive confirmation/login page rather than file bytes."
+          if head -c 500 header.bin | grep -aqE 'Google Drive - Virus scan warning|accounts.google.com'; then
+            echo "ERROR: Still received a confirmation/login page, not archive bytes."
+            exit 1
           fi
-          rm -f header.bin
+          rm -f response.bin header.bin
