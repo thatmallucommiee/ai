@@ -155,3 +155,44 @@ extern "C" JNIEXPORT void JNICALL
 Java_org_sdandroid_nativeport_MainActivity_nativeTouch(JNIEnv*, jclass, jfloat x, jfloat y, jint action) {
     LOGI("Touch action=%d at %.1f, %.1f", action, x, y);
 }
+
+
+#include <unistd.h>
+#include <cerrno>
+#include <string>
+#include <sstream>
+#include <iomanip>
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_sdandroid_nativeport_MainActivity_nativeInspectFileDescriptor(
+        JNIEnv* env, jclass, jint fd, jlong fileSize, jstring displayName) {
+    unsigned char bytes[64] = {};
+    const ssize_t n = pread(fd, bytes, sizeof(bytes), 0);
+    const char* rawName = displayName ? env->GetStringUTFChars(displayName, nullptr) : nullptr;
+    std::ostringstream out;
+    out << "Archive header inspection (not decoded)\\n";
+    out << "File: " << (rawName ? rawName : "selected file") << "\\n";
+    out << "Size: " << static_cast<long long>(fileSize) << " bytes\\n";
+    if (rawName) env->ReleaseStringUTFChars(displayName, rawName);
+    if (n < 0) {
+        out << "Read failed: errno " << errno;
+        LOGE("Archive header read failed, errno=%d", errno);
+    } else if (n == 0) {
+        out << "File is empty";
+    } else {
+        out << "Read: " << n << " header bytes\\nHex: ";
+        for (ssize_t i = 0; i < n; ++i) {
+            if (i) out << ' ';
+            out << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<unsigned int>(bytes[i]);
+        }
+        out << "\\nASCII: ";
+        for (ssize_t i = 0; i < n; ++i) {
+            const unsigned char ch = bytes[i];
+            out << ((ch >= 32 && ch <= 126) ? static_cast<char>(ch) : '.');
+        }
+        LOGI("Selected archive header inspected: %zd bytes, file size=%lld", n, static_cast<long long>(fileSize));
+    }
+    const std::string result = out.str();
+    return env->NewStringUTF(result.c_str());
+}
