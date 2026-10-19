@@ -9,7 +9,7 @@ This folder contains an ARM64 Android rendering smoke test, not a port of Sleepi
 - GitHub Actions workflow builds a debug APK artifact.
 
 ## Legal and technical boundary
-No Sleeping Dogs executable, proprietary assets, proprietary source, or decompiled code is included. The public TheoryEngine repository is an archived reverse-engineered reimplementation, not the original source, and has no clear reuse license. Do not copy its code unless permission or qualified legal guidance is obtained. See [GENUINE_PORT_FEASIBILITY.md](GENUINE_PORT_FEASIBILITY.md) for the feasibility assessment and required gates.
+No Sleeping Dogs executable, proprietary assets, proprietary source, or decompiled code is included. The public TheoryEngine repository is an archived reverse-engineered reimplementation, not the original source, and has no clear reuse license. Do not copy its code unless permission or qualified legal guidance is obtained. See [GENUINE_PORT_FEASIBILITY.md](GENUINE_PORT_FEASIBILITY.md) for the feasibility assessment, [THEORYENGINE_ANDROID_AUDIT.md](THEORYENGINE_ANDROID_AUDIT.md) for initial findings, and [THEORYENGINE_DEPENDENCY_MAP.md](THEORYENGINE_DEPENDENCY_MAP.md) for the dependency/blocker map.
 
 ## Build
 Run the **Build Android Debug APK** workflow from the Actions tab. Workflow is scoped to this directory. It downloads Gradle 8.9, installs Android SDK packages, then builds a debug APK.
