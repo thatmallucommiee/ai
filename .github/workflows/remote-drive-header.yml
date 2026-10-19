@@ -28,33 +28,50 @@ jobs:
           fi
 
           URL="https://drive.google.com/uc?export=download&id=$DRIVE_FILE_ID"
-          curl -sS -L --range 0-63 --max-time 90 -o response.bin -w 'Initial HTTP status: %{http_code}\n' "$URL"
-          SIZE=$(wc -c < response.bin)
-          echo "Initial response bytes: $SIZE"
-          if head -c 500 response.bin | grep -aq 'Google Drive - Virus scan warning'; then
-            echo "Drive requires its virus-scan confirmation flow; extracting confirmation token."
-            TOKEN=$(python3 - <<'PY'
-          import re
-          s = open("response.bin", "rb").read().decode("utf-8", "replace")
-          patterns = [
-              r'name="confirm"\s+value="([^"]+)"',
-              r'[?&]confirm=([0-9A-Za-z_-]+)',
-          ]
-          for p in patterns:
-              m = re.search(p, s)
-              if m:
-                  print(m.group(1))
-                  break
+          curl -sS -L -c cookies.txt -b cookies.txt --max-time 90 -o response.bin -w 'Initial HTTP status: %{http_code}\n' "$URL"
+          echo "Initial response bytes: $(wc -c < response.bin)"
+
+          if head -c 1000 response.bin | grep -aq 'Google Drive - Virus scan warning'; then
+            echo "Drive returned a virus-scan confirmation page. Parsing form fields and cookies."
+            python3 - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse, parse_qs
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.inputs = []
+                  self.action = None
+                  self.in_form = False
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == "form":
+                      self.in_form = True
+                      self.action = a.get("action")
+                  elif tag == "input":
+                      self.inputs.append(a)
+          p = Parser()
+          p.feed(open("response.bin", encoding="utf-8", errors="replace").read())
+          print("Form action:", p.action or "(none)")
+          for item in p.inputs:
+              name = item.get("name", "")
+              if name in ("confirm", "id", "uuid", "export", "at"):
+                  print("Form field:", name, "=", item.get("value", ""))
+          with open("confirm.env", "w") as f:
+              f.write("FORM_ACTION=" + (urljoin("https://drive.google.com/", p.action or "/uc") ) + "\n")
+              for item in p.inputs:
+                  name = item.get("name", "")
+                  if name in ("confirm", "id", "uuid", "export", "at") and item.get("value"):
+                      f.write("FIELD_" + name.upper() + "=" + item["value"] + "\n")
           PY
-          )
-            if [[ -z "$TOKEN" ]]; then
-              echo "Could not find a confirmation token. Drive may require a different access method."
-              echo "Response title:"
-              grep -ao '<title>[^<]*</title>' response.bin | head -1 || true
-              exit 1
-            fi
-            URL="https://drive.google.com/uc?export=download&confirm=$TOKEN&id=$DRIVE_FILE_ID"
-            curl -sS -L --range 0-63 --max-time 120 -o header.bin -w 'Confirmed HTTP status: %{http_code}\n' "$URL"
+            source confirm.env
+            CONFIRM="${FIELD_CONFIRM:-t}"
+            ACTION="${FORM_ACTION:-https://drive.google.com/uc}"
+            echo "Retrying confirmation request with preserved cookies."
+            curl -sS -L -c cookies.txt -b cookies.txt --get "$ACTION" \
+              --data-urlencode "export=download" \
+              --data-urlencode "id=$DRIVE_FILE_ID" \
+              --data-urlencode "confirm=$CONFIRM" \
+              --range 0-63 --max-time 120 -o header.bin -w 'Confirmed HTTP status: %{http_code}\n'
           else
             mv response.bin header.bin
           fi
@@ -65,8 +82,9 @@ jobs:
           od -An -tx1 -N64 header.bin
           echo "First bytes (ASCII):"
           od -An -tc -N64 header.bin
-          if head -c 500 header.bin | grep -aqE 'Google Drive - Virus scan warning|accounts.google.com'; then
+          if head -c 1000 header.bin | grep -aqE 'Google Drive - Virus scan warning|accounts.google.com'; then
             echo "ERROR: Still received a confirmation/login page, not archive bytes."
+            echo "The Drive download endpoint may require a different flow or be restricted."
             exit 1
           fi
-          rm -f response.bin header.bin
+          rm -f response.bin header.bin cookies.txt confirm.env
