@@ -1,0 +1,43 @@
+name: Remote Drive Header Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive_file_id:
+        description: "Google Drive file ID (not a password or private token)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch only the first 64 bytes
+        env:
+          DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$DRIVE_FILE_ID" =~ ^[A-Za-z0-9_-]{10,200}$ ]]; then
+            echo "Invalid Drive file ID format."
+            exit 1
+          fi
+          URL="https://drive.google.com/uc?export=download&id=$DRIVE_FILE_ID"
+          CODE=$(curl -L --silent --show-error --range 0-63 --max-time 90 -o header.bin -w '%{http_code}' "$URL")
+          echo "HTTP status: $CODE"
+          echo "Downloaded bytes: $(wc -c < header.bin)"
+          file header.bin || true
+          echo "First bytes (hex):"
+          od -An -tx1 -N64 header.bin
+          echo "First bytes (ASCII):"
+          od -An -tc -N64 header.bin
+          echo "Response preview (first 300 bytes, if text):"
+          head -c 300 header.bin | strings || true
+          if grep -a -qi 'confirm\|Google Drive - virus scan warning\|accounts.google.com' header.bin; then
+            echo "NOTE: Response may be a Drive confirmation/login page rather than file bytes."
+          fi
+          rm -f header.bin
